@@ -63,11 +63,15 @@ To pull updates after the repo changes:
 
 ### Optional: Reddit auth (for higher rate limits + richer social signal)
 
-The social analyst pulls retail sentiment from r/wallstreetbets, r/stocks, and r/investing via the bundled [reddit-mcp-server](https://github.com/jordanburke/reddit-mcp-server). **By default it runs in anonymous mode** (~10 requests/minute, no setup) and pulls a conservative 3 calls per analysis. That's fine for single-ticker runs.
+Retail sentiment is pulled from r/wallstreetbets, r/stocks, and r/investing via the bundled [reddit-mcp-server](https://github.com/jordanburke/reddit-mcp-server). The fetching happens in the `/trade` and `/trade-analyze` skills themselves (main Claude Code session), which then write a `reddit_signal.md` to each ticker's results directory. The social analyst subagent reads that file. This split is required because plugin-bundled MCP tools are only accessible to the main session — subagents cannot call them.
 
-If you run **multi-ticker** commands frequently (`/trade NVDA,AAPL,TSLA,...`) or want richer Reddit context (top posts from 3 subs, more comment threading, ~8 calls per analysis), upgrade to authenticated mode. Authenticated mode raises the limit to 60–100 req/min AND the social analyst automatically expands its Reddit call budget when it detects credentials.
+**By default the plugin runs in anonymous mode** (~10 Reddit requests/minute, no API key required) and pulls 2-3 calls per ticker. That's fine for single-ticker runs.
 
-**One-time setup:**
+If you run **multi-ticker** commands frequently (`/trade NVDA,AAPL,TSLA,...`) or want richer Reddit context (search across r/wallstreetbets / r/stocks / r/investing, more posts, comments on top results — about 5-6 calls per ticker), upgrade to authenticated mode. Authenticated mode raises Reddit's rate limit to 60–100 req/min and the `/trade` skill automatically expands its Reddit fetch budget when it detects the credentials.
+
+**Heads-up: Reddit's "Responsible Builder Policy" gate is real.** As of 2025-2026, Reddit's app creation page often loops users through captchas or blocks app creation entirely for newer accounts, accounts without verified email, or accounts on VPNs. If you hit the gate, stay on anonymous mode — the plugin still works fine, just with the tighter budget.
+
+**One-time setup (if Reddit lets you):**
 
 1. Sign in to Reddit and go to https://www.reddit.com/prefs/apps
 2. Click "create another app..." at the bottom
@@ -82,11 +86,10 @@ If you run **multi-ticker** commands frequently (`/trade NVDA,AAPL,TSLA,...`) or
    ```bash
    export REDDIT_CLIENT_ID="<the ID from step 4>"
    export REDDIT_CLIENT_SECRET="<the secret from step 4>"
-   export REDDIT_AUTH_MODE="authenticated"  # optional — forces it on
    ```
 6. `source ~/.zshrc` (or restart your terminal) and re-launch Claude Code.
 
-The MCP server inherits these env vars from Claude Code's process. The plugin manifest never sees the credentials — they live only in your shell, never in version control.
+The Reddit MCP server inherits these env vars from Claude Code's process. The plugin manifest never sees the credentials — they live only in your shell, never in version control.
 
 ## Commands
 
@@ -106,7 +109,7 @@ TradingClawd/
 ├── .claude-plugin/plugin.json          # plugin manifest
 ├── agents/                             # 12 subagent definitions
 │   ├── ta-market-analyst.md            # technical analysis
-│   ├── ta-social-analyst.md            # Reddit + yfinance news sentiment
+│   ├── ta-social-analyst.md            # interprets pre-fetched Reddit signal + yfinance news
 │   ├── ta-news-analyst.md              # macro / global news
 │   ├── ta-fundamentals-analyst.md      # financials
 │   ├── ta-bull-researcher.md

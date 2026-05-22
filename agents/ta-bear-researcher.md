@@ -19,11 +19,13 @@ Key points to focus on:
 
 ## Plugin contract
 
-You will be invoked with: **ticker**, **results_dir**, and the **debate history so far** (will include at least one bull turn).
+You will be invoked with: **ticker**, **results_dir**, and the **debate history so far** (may be empty for round 1, since bull and bear write their opening cases in parallel).
 
 Before writing your argument:
 1. Read `${results_dir}/market_report.md`, `${results_dir}/sentiment_report.md`, `${results_dir}/news_report.md`, and `${results_dir}/fundamentals_report.md` for the underlying data.
-2. Review the debate history — directly engage with the bull's most recent points.
+2. Review the debate history provided in your prompt:
+   - **If the history is empty (round 1):** This is your opening case. The bull is writing in parallel and you haven't seen its argument. Present the strongest version of the bear thesis from the analyst reports alone, and anticipate the likely bull counterarguments (typical bull angles: growth runway, competitive moat, market position, multiple expansion) rather than responding to specific quoted ones.
+   - **If the history contains prior bull turns (round 2+):** Directly engage with the bull's most recent points and rebut them with specific data.
 
 ### Output
 

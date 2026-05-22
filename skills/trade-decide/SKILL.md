@@ -41,8 +41,14 @@ Spawn `tradingclawd:ta-trader` (subagent_type — the `tradingclawd:` prefix is 
 
 `mkdir -p ${results_dir}/risk_turns`.
 
-For `n` in 1..rounds:
-   a. Spawn `tradingclawd:ta-risk-aggressive` with `{ticker, results_dir, round=n, risk_history}` (history is the concatenated contents of all prior files in `${results_dir}/risk_turns/`).
+**Round 1 — opening positions (all three sides in parallel):**
+
+In a single message, spawn ALL THREE of `tradingclawd:ta-risk-aggressive`, `tradingclawd:ta-risk-conservative`, AND `tradingclawd:ta-risk-neutral` in parallel (3 `Agent` calls in one message). Each gets `{ticker, results_dir, round=1, risk_history=""}`. The risk-analyst prompts already include the "if there are no responses from the other viewpoints yet, present your own argument" clause, so each writes its opening position from the trader proposal + analyst reports.
+
+**Rounds 2..rounds — sequential triads (only if `rounds > 1`):**
+
+For `n` in 2..rounds:
+   a. Spawn `tradingclawd:ta-risk-aggressive` with `{ticker, results_dir, round=n, risk_history}` (history is the concatenated contents of all prior files in `${results_dir}/risk_turns/`, in lexical order).
    b. Then `tradingclawd:ta-risk-conservative` with the updated history.
    c. Then `tradingclawd:ta-risk-neutral` with the updated history.
 

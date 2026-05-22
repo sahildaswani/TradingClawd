@@ -42,6 +42,54 @@ results_dir = ${data_dir}/results/<TICKER>/<TRADE_DATE>
 mkdir -p ${results_dir}
 ```
 
+### 2.5. Pre-fetch Reddit signal (main session only — subagents cannot access plugin MCP tools)
+
+**Why this lives here, not in the social analyst:** Plugin-bundled MCP tools are only available to skills running in the main session. The social analyst subagent cannot call `mcp__plugin_tradingclawd_reddit__*` — so the skill itself must fetch and persist the Reddit data, and the analyst reads from disk.
+
+**Detect auth mode:**
+```bash
+if [ -n "${REDDIT_CLIENT_ID:-}" ] && [ -n "${REDDIT_CLIENT_SECRET:-}" ]; then
+  REDDIT_AUTH="AUTHENTICATED"
+else
+  REDDIT_AUTH="ANONYMOUS"
+fi
+```
+
+**Round A — batched MCP calls in one message:**
+
+- **ANONYMOUS (2 calls):**
+  - `mcp__plugin_tradingclawd_reddit__search_reddit` `{query: "<TICKER>", time_filter: "week", limit: 10}`
+  - `mcp__plugin_tradingclawd_reddit__get_top_posts` `{subreddit: "wallstreetbets", time_filter: "week", limit: 10}`
+- **AUTHENTICATED (5 calls):**
+  - `search_reddit` for ticker AND for company name (2 calls)
+  - `get_top_posts` from `wallstreetbets`, `stocks`, `investing` (3 calls)
+
+**Round B — comments on most engaged ticker-relevant post (1 call):**
+
+From Round A's results, pick the single post that most strongly mentions the ticker AND has the highest engagement (score × comments is a fine heuristic). Then call:
+- `mcp__plugin_tradingclawd_reddit__get_post_comments` `{post_id: "<id>"}`
+
+If no relevant post exists, skip Round B.
+
+**Round C — write `${results_dir}/reddit_signal.md`:**
+
+```markdown
+# Reddit signal for <TICKER> @ <trade_date>
+**Auth mode:** <ANONYMOUS|AUTHENTICATED>
+**Subreddits sampled:** <list>
+
+## search_reddit("<TICKER>", week) — N results
+<post titles, scores, authors, subreddits, comment counts, links>
+
+## get_top_posts(<sub>, week) — N results
+<same shape>
+
+## Comments on most engaged post (<title>)
+<top 5-10 comments with author + score + body>
+```
+
+If a Reddit call errors (rate limit, network), record `**ERROR:** <message>` in the file instead of aborting — the social analyst will still write a degraded report.
+
 ### 3. Spawn four analyst subagents IN PARALLEL
 
 **In a single message**, spawn the four analyst subagents in parallel (use these exact `subagent_type` values — the `tradingclawd:` prefix is required):

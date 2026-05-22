@@ -22,7 +22,9 @@ You will be invoked with: **ticker**, **results_dir**, and the **debate history 
 
 Before writing your argument:
 1. Read `${results_dir}/market_report.md`, `${results_dir}/sentiment_report.md`, `${results_dir}/news_report.md`, and `${results_dir}/fundamentals_report.md` for the underlying data.
-2. Review the debate history provided in your prompt — directly engage with the bear's most recent points if there are any.
+2. Review the debate history provided in your prompt:
+   - **If the history is empty (round 1):** This is your opening case. The bear is writing in parallel and you haven't seen its argument. Present the strongest version of the bull thesis from the analyst reports alone, and anticipate the likely bear counterarguments (typical bear angles: valuation, competitive pressure, macroeconomic risk, growth deceleration) rather than responding to specific quoted ones.
+   - **If the history contains prior bear turns (round 2+):** Directly engage with the bear's most recent points and rebut them with specific data.
 
 ### Output
 

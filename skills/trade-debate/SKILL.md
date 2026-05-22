@@ -37,9 +37,15 @@ Verify all four files exist in `${results_dir}/`: `market_report.md`, `sentiment
 
 `mkdir -p ${results_dir}/debate_turns`.
 
-For `n` in 1..rounds (use `subagent_type` values with the `tradingclawd:` prefix exactly as shown):
-   a. Spawn `tradingclawd:ta-bull-researcher` with `{ticker, results_dir, round=n, debate_history}`. The `debate_history` is the concatenation of every previously-written file in `${results_dir}/debate_turns/` in order — include its actual contents in the prompt, not just file paths.
-   b. After bull_<n>.md exists, spawn `tradingclawd:ta-bear-researcher` with the updated history.
+**Round 1 — opening case (bull AND bear in parallel):**
+
+In a single message, spawn BOTH `tradingclawd:ta-bull-researcher` AND `tradingclawd:ta-bear-researcher` in parallel (2 `Agent` calls in one message). Each gets `{ticker, results_dir, round=1, debate_history=""}`. They write their opening statements based on the analyst reports alone — there's no prior debate to respond to, and the agents are explicitly told to handle the empty-history case.
+
+**Rounds 2..rounds — sequential (only if `rounds > 1`):**
+
+For `n` in 2..rounds:
+   a. Spawn `tradingclawd:ta-bull-researcher` with `{ticker, results_dir, round=n, debate_history}`. The `debate_history` is the concatenation of every previously-written file in `${results_dir}/debate_turns/` in lexical order — include the actual contents in the prompt, not just file paths.
+   b. After `bull_<n>.md` exists, spawn `tradingclawd:ta-bear-researcher` with the updated history.
 
 ### 4. Research Manager
 
