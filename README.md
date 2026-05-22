@@ -1,6 +1,6 @@
 # TradingClawd
 
-A Claude Code plugin that ports the [TradingAgents](https://github.com/.../TradingAgents) multi-agent trading framework to native Claude Code primitives. Twelve specialized subagents (four analysts, two researchers, a research manager, a trader, three risk debators, a portfolio manager) collaborate through structured debate to produce a trading decision for any ticker.
+A Claude Code plugin that ports the [TradingAgents](https://github.com/tauricresearch/tradingagents) multi-agent trading framework to native Claude Code primitives. Twelve specialized subagents (four analysts, two researchers, a research manager, a trader, three risk debators, a portfolio manager) collaborate through structured debate to produce a trading decision for any ticker.
 
 ## What it does
 
@@ -28,10 +28,14 @@ Crucially, TradingClawd **never** writes inside the plugin install directory —
 
 ### Dependencies
 
+**Python** — for the bundled data scripts (yfinance, stockstats, pandas):
+
 ```bash
 cd /Users/sahildaswani/Desktop/TradingClawd
 pip install -r requirements.txt
 ```
+
+**Node.js / npm** — for the Reddit MCP server (auto-fetched via `npx` on first use). Confirm with `node --version` and `npx --version`. Any modern Node (18+) is fine.
 
 ### As a Claude Code plugin
 
@@ -55,6 +59,33 @@ To pull updates after the repo changes:
 ```
 /plugin marketplace update tradingclawd-marketplace
 ```
+
+### Optional: Reddit auth (for higher rate limits + richer social signal)
+
+The social analyst pulls retail sentiment from r/wallstreetbets, r/stocks, and r/investing via the bundled [reddit-mcp-server](https://github.com/jordanburke/reddit-mcp-server). **By default it runs in anonymous mode** (~10 requests/minute, no setup) and pulls a conservative 3 calls per analysis. That's fine for single-ticker runs.
+
+If you run **multi-ticker** commands frequently (`/trade NVDA,AAPL,TSLA,...`) or want richer Reddit context (top posts from 3 subs, more comment threading, ~8 calls per analysis), upgrade to authenticated mode. Authenticated mode raises the limit to 60–100 req/min AND the social analyst automatically expands its Reddit call budget when it detects credentials.
+
+**One-time setup:**
+
+1. Sign in to Reddit and go to https://www.reddit.com/prefs/apps
+2. Click "create another app..." at the bottom
+3. Fill in:
+   - **name**: anything (e.g. `tradingclawd-mcp`)
+   - **type**: select **`script`** (no OAuth, no user redirect — this is the simplest type)
+   - **redirect uri**: `http://localhost:8080` (required field but never used by `script` apps)
+4. Click "create app". Reddit shows two strings:
+   - The client ID is the random string directly under the app name
+   - The client secret is the value labelled `secret`
+5. Add to your shell rc (`~/.zshrc`, `~/.bashrc`):
+   ```bash
+   export REDDIT_CLIENT_ID="<the ID from step 4>"
+   export REDDIT_CLIENT_SECRET="<the secret from step 4>"
+   export REDDIT_AUTH_MODE="authenticated"  # optional — forces it on
+   ```
+6. `source ~/.zshrc` (or restart your terminal) and re-launch Claude Code.
+
+The MCP server inherits these env vars from Claude Code's process. The plugin manifest never sees the credentials — they live only in your shell, never in version control.
 
 ## Commands
 
@@ -122,9 +153,13 @@ User-visible data (written to `$TRADINGCLAWD_DIR` or `$(pwd)/.tradingclawd/`, NO
     └── portfolio_decision.json
 ```
 
-## Data source
+## Data sources
 
-All market data comes from **yfinance** (free, no API key). Technical indicators are computed via **stockstats** off the OHLCV pulled from yfinance. There is no Reddit / Twitter / Alpha Vantage integration in this initial port — the social analyst infers sentiment from news tone and recency.
+- **Market data** (OHLCV, fundamentals, company news): [**yfinance**](https://github.com/ranaroussi/yfinance) — free, no API key.
+- **Technical indicators**: [**stockstats**](https://github.com/jealous/stockstats) computed off the OHLCV pulled from yfinance.
+- **Retail social signal**: [**reddit-mcp-server**](https://github.com/jordanburke/reddit-mcp-server) — bundled via the plugin's MCP config. Anonymous mode by default (no API key, ~10 req/min). Optional authenticated mode lifts the rate limit to 60–100 req/min and expands the social analyst's call budget for richer multi-sub coverage — see [Optional: Reddit auth](#optional-reddit-auth-for-higher-rate-limits--richer-social-signal) above.
+
+No Twitter / X integration (paid API). No Alpha Vantage integration (yfinance already covers the same data without a key).
 
 ## Differences from the original TradingAgents
 
