@@ -104,9 +104,9 @@ The MCP server inherits these env vars from Claude Code's process. The plugin ma
 ```
 TradingClawd/
 ├── .claude-plugin/plugin.json          # plugin manifest
-├── agents/                             # 13 subagent definitions
+├── agents/                             # 12 subagent definitions
 │   ├── ta-market-analyst.md            # technical analysis
-│   ├── ta-social-analyst.md            # news sentiment
+│   ├── ta-social-analyst.md            # Reddit + yfinance news sentiment
 │   ├── ta-news-analyst.md              # macro / global news
 │   ├── ta-fundamentals-analyst.md      # financials
 │   ├── ta-bull-researcher.md
@@ -116,8 +116,7 @@ TradingClawd/
 │   ├── ta-risk-aggressive.md
 │   ├── ta-risk-conservative.md
 │   ├── ta-risk-neutral.md
-│   ├── ta-portfolio-manager.md         # final decision (JSON)
-│   └── ta-ticker-orchestrator.md       # drives the full pipeline per ticker
+│   └── ta-portfolio-manager.md         # final decision (JSON)
 ├── skills/                             # 4 slash commands
 │   ├── trade/SKILL.md
 │   ├── trade-analyze/SKILL.md
@@ -164,7 +163,7 @@ No Twitter / X integration (paid API). No Alpha Vantage integration (yfinance al
 
 ## Differences from the original TradingAgents
 
-- No LangChain / LangGraph runtime — orchestration is done by the `ta-ticker-orchestrator` subagent reading a Markdown spec.
+- No LangChain / LangGraph runtime — orchestration is driven by the `/trade` skill itself (Markdown spec executed by Claude in the main session), using wave-based parallelization to fan out subagents per phase. Multi-ticker runs spawn each phase's subagents for every ticker in one parallel batch.
 - No multi-provider LLM client. The "LLM" is whichever Claude model is running Claude Code.
 - No checkpoint / resume — runs that fail mid-pipeline can be resumed by invoking the relevant `/trade-*` sub-skill (analyst reports / research plan are persisted on disk).
 - No backtesting (`backtrader`).
