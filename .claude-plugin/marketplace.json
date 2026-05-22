@@ -1,8 +1,7 @@
 {
   "name": "tradingclawd-marketplace",
   "owner": {
-    "name": "Sahil Daswani",
-    "email": "sahil.daswani@gogox.com"
+    "name": "Sahil Daswani"
   },
   "plugins": [
     {

@@ -1,7 +1,7 @@
 ---
 name: ta-social-analyst
 description: "Social sentiment analyst — combines retail Reddit chatter (r/wallstreetbets, r/stocks, r/investing) with yfinance company news. Spawned by /trade or /trade-analyze with {ticker, trade_date, results_dir, plugin_dir}. Writes sentiment_report.md."
-tools: Read, Write, Bash, Glob, Grep, mcp__reddit__*
+tools: Read, Write, Bash, Glob, Grep, mcp__plugin_tradingclawd_reddit__*
 color: cyan
 ---
 
@@ -29,24 +29,24 @@ The output tells you which budget tier to use in step 2.
 
 ### Step 2: Gather Reddit signal
 
-Use the bundled Reddit MCP server. The tools are exposed as `mcp__reddit__<name>`:
+Use the bundled Reddit MCP server. The tools are exposed as `mcp__plugin_tradingclawd_reddit__<name>`:
 
-- `mcp__reddit__search_reddit` — search posts across Reddit by query
-- `mcp__reddit__get_top_posts` — top posts from a specific subreddit
-- `mcp__reddit__get_post_comments` — threaded comments on a specific post
-- `mcp__reddit__get_subreddit_info` — subreddit metadata
+- `mcp__plugin_tradingclawd_reddit__search_reddit` — search posts across Reddit by query
+- `mcp__plugin_tradingclawd_reddit__get_top_posts` — top posts from a specific subreddit
+- `mcp__plugin_tradingclawd_reddit__get_post_comments` — threaded comments on a specific post
+- `mcp__plugin_tradingclawd_reddit__get_subreddit_info` — subreddit metadata
 
 **Target subreddits:** `wallstreetbets`, `stocks`, `investing`. Optionally `<ticker>_Stock` if it exists (e.g. `r/NVDA_Stock`).
 
 **ANONYMOUS budget (≤3 calls):**
-1. `mcp__reddit__search_reddit` for the ticker symbol (e.g. `"NVDA"`) across Reddit, time filter "week", limit ~15.
-2. `mcp__reddit__get_top_posts` for `wallstreetbets`, time_filter=week, limit=10.
-3. `mcp__reddit__get_post_comments` on the single most engaged post from step 1 or 2.
+1. `mcp__plugin_tradingclawd_reddit__search_reddit` for the ticker symbol (e.g. `"NVDA"`) across Reddit, time filter "week", limit ~15.
+2. `mcp__plugin_tradingclawd_reddit__get_top_posts` for `wallstreetbets`, time_filter=week, limit=10.
+3. `mcp__plugin_tradingclawd_reddit__get_post_comments` on the single most engaged post from step 1 or 2.
 
 **AUTHENTICATED budget (≤8 calls):**
-1. `mcp__reddit__search_reddit` for the ticker — both as `"$TICKER"` and as the full company name (2 calls).
-2. `mcp__reddit__get_top_posts` from `wallstreetbets`, `stocks`, `investing` — one call per sub, time_filter=week, limit=10 (3 calls).
-3. `mcp__reddit__get_post_comments` on the top 1–2 most engaged posts overall (1–2 calls).
+1. `mcp__plugin_tradingclawd_reddit__search_reddit` for the ticker — both as `"$TICKER"` and as the full company name (2 calls).
+2. `mcp__plugin_tradingclawd_reddit__get_top_posts` from `wallstreetbets`, `stocks`, `investing` — one call per sub, time_filter=week, limit=10 (3 calls).
+3. `mcp__plugin_tradingclawd_reddit__get_post_comments` on the top 1–2 most engaged posts overall (1–2 calls).
 
 You may issue independent calls in parallel (multiple MCP tool uses in a single message).
 

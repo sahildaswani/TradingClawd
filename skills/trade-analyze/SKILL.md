@@ -22,10 +22,8 @@ Parse `$ARGUMENTS` as: `<ticker> [<YYYY-MM-DD>]`. Default `trade_date` to today 
 if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "${CLAUDE_PLUGIN_ROOT}/scripts/_common.py" ]; then
   PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT}"
 else
+  # Fall back to probing the user's plugin cache.
   PLUGIN_DIR=$(find "$HOME/.claude/plugins" -type f -name "_common.py" -path "*/tradingclawd/scripts/*" 2>/dev/null | head -1 | sed 's|/scripts/_common.py||')
-  if [ -z "$PLUGIN_DIR" ] && [ -f "/Users/sahildaswani/Desktop/TradingClawd/scripts/_common.py" ]; then
-    PLUGIN_DIR="/Users/sahildaswani/Desktop/TradingClawd"
-  fi
 fi
 
 # data_dir — env-var override or default to $(pwd)/.tradingclawd

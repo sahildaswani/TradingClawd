@@ -3,8 +3,7 @@
   "version": "0.2.0",
   "description": "Multi-agent LLM trading framework — analysts, researchers, trader, risk debators and a portfolio manager that collaborate to produce a trading decision. Native Claude Code port of TradingAgents.",
   "author": {
-    "name": "Sahil Daswani",
-    "email": "sahil.daswani@gogox.com"
+    "name": "Sahil Daswani"
   },
   "mcpServers": {
     "reddit": {

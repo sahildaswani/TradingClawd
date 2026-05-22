@@ -28,14 +28,15 @@ Crucially, TradingClawd **never** writes inside the plugin install directory —
 
 ### Dependencies
 
-**Python** — for the bundled data scripts (yfinance, stockstats, pandas):
+**Python 3.10+** — for the bundled data scripts (yfinance, stockstats, pandas). Claude Code plugins don't auto-install Python dependencies, so install them yourself:
 
 ```bash
-cd /Users/sahildaswani/Desktop/TradingClawd
-pip install -r requirements.txt
+pip install yfinance stockstats pandas python-dateutil requests
 ```
 
-**Node.js / npm** — for the Reddit MCP server (auto-fetched via `npx` on first use). Confirm with `node --version` and `npx --version`. Any modern Node (18+) is fine.
+(Equivalent to `pip install -r requirements.txt` from the cloned repo.)
+
+**Node.js / npm 18+** — for the Reddit MCP server (auto-fetched via `npx` on first use). Confirm with `node --version` and `npx --version`.
 
 ### As a Claude Code plugin
 
