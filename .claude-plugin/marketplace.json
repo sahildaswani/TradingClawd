@@ -1,0 +1,14 @@
+{
+  "name": "tradingclawd-marketplace",
+  "owner": {
+    "name": "Sahil Daswani",
+    "email": "sahil.daswani@gogox.com"
+  },
+  "plugins": [
+    {
+      "name": "tradingclawd",
+      "source": "./",
+      "description": "Multi-agent LLM trading framework — analysts, researchers, trader, risk debators and a portfolio manager that collaborate to produce a trading decision. Native Claude Code port of TradingAgents."
+    }
+  ]
+}
