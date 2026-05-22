@@ -1,0 +1,20 @@
+# Data outputs — never belong in the plugin repo.
+# Skill writes go to $TRADINGCLAWD_DIR or $(pwd)/.tradingclawd/,
+# but these legacy dirs are listed defensively in case someone
+# runs the plugin from inside this repo or has a stale install.
+results/
+memory/
+.tradingclawd/
+
+# Per-user Claude Code settings — never commit
+.claude/settings.local.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# macOS
+.DS_Store

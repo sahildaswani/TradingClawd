@@ -12,8 +12,8 @@ You orchestrate the TradingClawd pipeline for **one ticker** end-to-end. You are
 You will be invoked with these inputs in the prompt:
 - **ticker** (e.g. `NVDA`)
 - **trade_date** (YYYY-MM-DD)
-- **results_dir** (absolute path to `<plugin_dir>/results/<TICKER>/<DATE>/`)
-- **plugin_dir** (absolute path to the TradingClawd plugin root)
+- **data_dir** (absolute path — the user's working data root, e.g. `<cwd>/.tradingclawd` or `$TRADINGCLAWD_DIR`. This is where results and memory live, NOT the plugin install location.)
+- **plugin_dir** (absolute path to the TradingClawd plugin root, used only for finding the bundled Python data scripts)
 - **max_debate_rounds** (integer, default 1 — one bull/bear exchange = 1 round)
 - **max_risk_discuss_rounds** (integer, default 1 — one aggressive/conservative/neutral cycle = 1 round)
 
@@ -21,17 +21,25 @@ You will be invoked with these inputs in the prompt:
 
 ### 1. Set up the working directory
 
+Derive the per-run results directory from `data_dir`:
+
+```
+results_dir = ${data_dir}/results/<TICKER>/<TRADE_DATE>
+```
+
+Then create it:
+
 ```bash
 mkdir -p ${results_dir}/debate_turns ${results_dir}/risk_turns
 ```
 
 ### 2. Analyst phase — spawn 4 subagents in PARALLEL
 
-In a single message, spawn all four with one `Agent` tool call each (4 calls in parallel):
-- `ta-market-analyst`
-- `ta-social-analyst`
-- `ta-news-analyst`
-- `ta-fundamentals-analyst`
+In a single message, spawn all four with one `Agent` tool call each (4 calls in parallel). Use these `subagent_type` values exactly (the `tradingclawd:` prefix is required because the agents are loaded via the plugin marketplace):
+- `tradingclawd:ta-market-analyst`
+- `tradingclawd:ta-social-analyst`
+- `tradingclawd:ta-news-analyst`
+- `tradingclawd:ta-fundamentals-analyst`
 
 Each subagent prompt should include: `ticker`, `trade_date`, `results_dir`, `plugin_dir`.
 
@@ -40,29 +48,29 @@ Wait for all four to complete. Confirm each report file exists in `${results_dir
 ### 3. Research debate phase
 
 For `n` in 1..`max_debate_rounds`:
-1. Spawn `ta-bull-researcher` with `{ticker, results_dir, round=n, debate_history}`. The `debate_history` is the concatenation of all previously-written debate turn files in order.
-2. After it writes `bull_<n>.md`, spawn `ta-bear-researcher` with `{ticker, results_dir, round=n, debate_history (now including bull_<n>)}`.
+1. Spawn `tradingclawd:ta-bull-researcher` with `{ticker, results_dir, round=n, debate_history}`. The `debate_history` is the concatenation of all previously-written debate turn files in order.
+2. After it writes `bull_<n>.md`, spawn `tradingclawd:ta-bear-researcher` with `{ticker, results_dir, round=n, debate_history (now including bull_<n>)}`.
 
-After all rounds, spawn `ta-research-manager` with `{ticker, trade_date, results_dir}`. It will produce `research_plan.json`.
+After all rounds, spawn `tradingclawd:ta-research-manager` with `{ticker, trade_date, results_dir}`. It will produce `research_plan.json`.
 
 ### 4. Trader phase
 
-Spawn `ta-trader` with `{ticker, trade_date, results_dir}`. It produces `trader_proposal.json`.
+Spawn `tradingclawd:ta-trader` with `{ticker, trade_date, results_dir}`. It produces `trader_proposal.json`.
 
 ### 5. Risk debate phase
 
 For `n` in 1..`max_risk_discuss_rounds`:
-1. Spawn `ta-risk-aggressive` with `{ticker, results_dir, round=n, risk_history}`.
-2. Then `ta-risk-conservative` with the now-updated history.
-3. Then `ta-risk-neutral` with the now-updated history.
+1. Spawn `tradingclawd:ta-risk-aggressive` with `{ticker, results_dir, round=n, risk_history}`.
+2. Then `tradingclawd:ta-risk-conservative` with the now-updated history.
+3. Then `tradingclawd:ta-risk-neutral` with the now-updated history.
 
 ### 6. Portfolio Manager
 
-Spawn `ta-portfolio-manager` with `{ticker, trade_date, results_dir, plugin_dir}`. It produces `portfolio_decision.json` (and uses `memory/trading_memory.md` for prior lessons).
+Spawn `tradingclawd:ta-portfolio-manager` with `{ticker, trade_date, results_dir, data_dir}`. It produces `portfolio_decision.json` (and uses `${data_dir}/memory/trading_memory.md` for prior lessons).
 
 ### 7. Memory log append
 
-Read `${results_dir}/portfolio_decision.json`, then append to `${plugin_dir}/memory/trading_memory.md`:
+Read `${results_dir}/portfolio_decision.json`, then append to `${data_dir}/memory/trading_memory.md`:
 
 ```
 ## <trade_date> | <TICKER> | <rating> | pending
@@ -70,7 +78,7 @@ Read `${results_dir}/portfolio_decision.json`, then append to `${plugin_dir}/mem
 
 ```
 
-If `memory/trading_memory.md` does not exist yet, create it with a one-line header first:
+If `${data_dir}/memory/trading_memory.md` does not exist yet, create the `memory/` directory and the file with a one-line header first:
 
 ```
 # TradingClawd decision log

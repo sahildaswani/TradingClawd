@@ -41,12 +41,16 @@ You will be invoked with these inputs in the prompt: **ticker**, **trade_date** 
 
 ```bash
 python ${plugin_dir}/scripts/get_stock_data.py --symbol <T> --start-date <YYYY-MM-DD> --end-date <YYYY-MM-DD>
-python ${plugin_dir}/scripts/get_indicators.py --symbol <T> --indicator <name> --curr-date <YYYY-MM-DD> --look-back 30
+python ${plugin_dir}/scripts/get_indicators.py --symbol <T> --indicators <name1,name2,...> --curr-date <YYYY-MM-DD> --look-back 30
 ```
 
 For the stock-data range, use the 30 days preceding `trade_date` up to and including `trade_date`.
 
-`get_indicators.py` accepts one indicator per call — call it once per indicator you select (you can run several Bash calls in parallel).
+**`get_indicators.py` accepts a comma-separated list via `--indicators` and returns all of them from a single OHLCV download.** You MUST pass all your selected indicators in ONE call — do NOT make a separate call per indicator (that would re-download the same OHLCV data 8 times). Example for the full 8-indicator selection:
+
+```bash
+python ${plugin_dir}/scripts/get_indicators.py --symbol NVDA --indicators macd,rsi,boll,boll_ub,boll_lb,atr,vwma,close_50_sma --curr-date 2026-05-22 --look-back 30
+```
 
 ### Output
 

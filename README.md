@@ -11,9 +11,18 @@ Run `/trade NVDA` (or `/trade NVDA,AAPL,TSLA` for multi-ticker parallel) and the
 3. **Trader** turns the recommendation into a concrete proposal (`Buy / Hold / Sell` + entry price + stop-loss + sizing).
 4. **Aggressive vs Conservative vs Neutral risk debate** — three risk analysts argue about the trader's proposal.
 5. **Portfolio Manager** synthesizes everything into a final decision, factoring in prior decisions from the memory log.
-6. **Memory log** — every decision is appended to `memory/trading_memory.md`. On future runs of the same ticker, the Portfolio Manager reads the log and incorporates prior lessons into its thesis.
+6. **Memory log** — every decision is appended to `${data_dir}/memory/trading_memory.md`. On future runs of the same ticker, the Portfolio Manager reads the log and incorporates prior lessons into its thesis.
 
-Per-ticker artifacts (analyst reports, debate turns, JSON outputs) land in `results/<TICKER>/<DATE>/`.
+Per-ticker artifacts (analyst reports, debate turns, JSON outputs) land in `${data_dir}/results/<TICKER>/<DATE>/`.
+
+## Where results are written
+
+TradingClawd writes everything (per-run artifacts and the decision memory log) to a single **data directory**, resolved per invocation:
+
+1. **`$TRADINGCLAWD_DIR`** if you've set that env var (e.g. `export TRADINGCLAWD_DIR=~/tradingclawd-archive`). Use this for a single shared archive across all your projects.
+2. **`$(pwd)/.tradingclawd/`** otherwise — a per-project directory in whichever folder you launched Claude Code from. This is the default and is usually what you want: each project (e.g. one folder per trading strategy) gets its own decision history.
+
+Crucially, TradingClawd **never** writes inside the plugin install directory — that's read-only state managed by `/plugin marketplace update` and would be overwritten.
 
 ## Install
 
@@ -26,12 +35,26 @@ pip install -r requirements.txt
 
 ### As a Claude Code plugin
 
-The plugin directory is `/Users/sahildaswani/Desktop/TradingClawd`. To make Claude Code discover it, either:
+In any Claude Code session, run:
 
-- Symlink it into your plugins folder: `ln -s /Users/sahildaswani/Desktop/TradingClawd ~/.claude/plugins/tradingclawd`
-- Or install via your usual plugin marketplace flow if applicable.
+```
+/plugin marketplace add sahildaswani/TradingClawd
+/plugin install tradingclawd@tradingclawd-marketplace
+```
 
-Restart Claude Code and confirm `/trade` appears in the slash-command list.
+Verify it's loaded:
+
+```
+/plugin list
+```
+
+Skills will appear namespaced as `/tradingclawd:trade`, `/tradingclawd:trade-analyze`, `/tradingclawd:trade-debate`, `/tradingclawd:trade-decide`.
+
+To pull updates after the repo changes:
+
+```
+/plugin marketplace update tradingclawd-marketplace
+```
 
 ## Commands
 
@@ -79,6 +102,13 @@ TradingClawd/
 │   ├── get_news.py                     # ticker-specific news
 │   ├── get_global_news.py              # macro news
 │   └── get_insider_transactions.py
+└── requirements.txt                    # Python deps for the data scripts
+```
+
+User-visible data (written to `$TRADINGCLAWD_DIR` or `$(pwd)/.tradingclawd/`, NOT inside the plugin):
+
+```
+<data_dir>/
 ├── memory/trading_memory.md            # append-only decision log (created at runtime)
 └── results/<TICKER>/<DATE>/            # per-run artifacts (created at runtime)
     ├── market_report.md

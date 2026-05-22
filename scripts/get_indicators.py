@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Retrieve a technical indicator (computed via stockstats) over a look-back window."""
+"""Retrieve one or more technical indicators (computed via stockstats) over a look-back window.
+
+Supports two invocation modes:
+- Single:  --indicator macd
+- Batch:   --indicators macd,rsi,boll,boll_ub,boll_lb,atr,vwma,close_50_sma
+
+Batch mode loads the underlying OHLCV once and computes every requested indicator
+off the same stockstats DataFrame, avoiding redundant network downloads.
+"""
 
 import argparse
 import os
@@ -114,29 +122,16 @@ def _load_ohlcv(symbol: str, curr_date: str) -> pd.DataFrame:
     return data[data["Date"] <= cutoff]
 
 
-def get_indicator(symbol: str, indicator: str, curr_date: str, look_back: int) -> str:
-    if indicator not in INDICATOR_DOCS:
-        raise ValueError(
-            f"Indicator '{indicator}' is not supported. Choose from: "
-            f"{', '.join(INDICATOR_DOCS.keys())}"
-        )
-
-    parse_date(curr_date)
-    curr_dt = pd.to_datetime(curr_date)
-    before = curr_dt - relativedelta(days=look_back)
-
-    from stockstats import wrap
-
-    data = _load_ohlcv(symbol, curr_date)
-    if data.empty:
-        raise RuntimeError(f"No OHLCV data available for {symbol} up to {curr_date}")
-
-    df = wrap(data)
-    df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
-    df[indicator]  # triggers stockstats calculation
-
+def _format_indicator_section(
+    indicator: str,
+    df_with_dates: pd.DataFrame,
+    curr_dt: pd.Timestamp,
+    before: pd.Timestamp,
+    curr_date: str,
+) -> str:
+    """Build the markdown section for one indicator off an already-wrapped DataFrame."""
     value_map = {}
-    for _, row in df.iterrows():
+    for _, row in df_with_dates.iterrows():
         v = row[indicator]
         value_map[row["Date"]] = "N/A" if pd.isna(v) else str(v)
 
@@ -158,19 +153,77 @@ def get_indicator(symbol: str, indicator: str, curr_date: str, look_back: int) -
     )
 
 
+def get_indicators_batch(
+    symbol: str, indicators: list[str], curr_date: str, look_back: int
+) -> str:
+    """Compute one or more indicators with a single OHLCV download."""
+    unknown = [i for i in indicators if i not in INDICATOR_DOCS]
+    if unknown:
+        raise ValueError(
+            f"Unsupported indicator(s): {', '.join(unknown)}. "
+            f"Choose from: {', '.join(INDICATOR_DOCS.keys())}"
+        )
+    if not indicators:
+        raise ValueError("At least one indicator must be requested.")
+
+    parse_date(curr_date)
+    curr_dt = pd.to_datetime(curr_date)
+    before = curr_dt - relativedelta(days=look_back)
+
+    from stockstats import wrap
+
+    data = _load_ohlcv(symbol, curr_date)
+    if data.empty:
+        raise RuntimeError(f"No OHLCV data available for {symbol} up to {curr_date}")
+
+    df = wrap(data)
+    df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
+
+    # Trigger stockstats to compute every requested indicator off the same wrapped df
+    for ind in indicators:
+        df[ind]
+
+    sections = [
+        _format_indicator_section(ind, df, curr_dt, before, curr_date)
+        for ind in indicators
+    ]
+    return "\n\n".join(sections)
+
+
+def get_indicator(symbol: str, indicator: str, curr_date: str, look_back: int) -> str:
+    """Backward-compat single-indicator wrapper."""
+    return get_indicators_batch(symbol, [indicator], curr_date, look_back)
+
+
+def _parse_indicator_list(s: str) -> list[str]:
+    return [piece.strip() for piece in s.split(",") if piece.strip()]
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--symbol", required=True)
-    p.add_argument(
+    group = p.add_mutually_exclusive_group(required=True)
+    group.add_argument(
         "--indicator",
-        required=True,
-        help=f"One of: {', '.join(INDICATOR_DOCS.keys())}",
+        help=f"Single indicator. One of: {', '.join(INDICATOR_DOCS.keys())}",
+    )
+    group.add_argument(
+        "--indicators",
+        help=(
+            "Comma-separated list of indicators to compute in a single OHLCV pass, "
+            "e.g. 'macd,rsi,boll,boll_ub,boll_lb,atr,vwma,close_50_sma'."
+        ),
     )
     p.add_argument("--curr-date", required=True, help="YYYY-MM-DD")
     p.add_argument("--look-back", type=int, default=30)
     args = p.parse_args()
+
+    indicators = (
+        [args.indicator] if args.indicator else _parse_indicator_list(args.indicators)
+    )
+
     try:
-        print(get_indicator(args.symbol, args.indicator, args.curr_date, args.look_back))
+        print(get_indicators_batch(args.symbol, indicators, args.curr_date, args.look_back))
     except Exception as e:
         die(str(e))
 

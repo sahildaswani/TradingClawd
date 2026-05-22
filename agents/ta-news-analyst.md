@@ -20,7 +20,7 @@ python ${plugin_dir}/scripts/get_global_news.py --curr-date <YYYY-MM-DD> --look-
 python ${plugin_dir}/scripts/get_news.py --ticker <T> --start-date <YYYY-MM-DD> --end-date <YYYY-MM-DD>
 ```
 
-Lead with global/macro context, then narrow to ticker-specific news. Connect macro events to the ticker's likely exposure.
+**Run both calls in parallel** — issue both Bash tool uses in a SINGLE message so they execute concurrently. The two scripts have no dependency on each other. Then, when writing the report, lead with global/macro context, then narrow to ticker-specific news, and connect macro events to the ticker's likely exposure.
 
 ### Output
 

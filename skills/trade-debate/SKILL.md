@@ -1,6 +1,6 @@
 ---
 name: trade-debate
-description: "Run only the bull/bear research debate + research manager for one ticker. Assumes analyst reports already exist in results/<TICKER>/<DATE>/. Usage: `/trade-debate NVDA [2026-05-22] [rounds=1]`."
+description: "Run only the bull/bear research debate + research manager for one ticker. Assumes analyst reports already exist in ${data_dir}/results/<TICKER>/<DATE>/. Usage: `/trade-debate NVDA [2026-05-22] [rounds=1]`."
 argument-hint: "<ticker> [trade-date YYYY-MM-DD] [rounds=N]"
 allowed-tools: Bash, Read, Write, Glob, Grep, Agent
 ---
@@ -15,13 +15,36 @@ Parse `$ARGUMENTS` as: `<ticker> [<YYYY-MM-DD>] [rounds=N]`. Default `trade_date
 
 ## Steps
 
-1. Resolve `plugin_dir` and compute `results_dir`.
-2. **Verify the four analyst reports exist** in `${results_dir}/`. If any are missing, stop and tell the user to run `/trade-analyze <ticker> [date]` first.
-3. `mkdir -p ${results_dir}/debate_turns`.
-4. **Debate loop** for `n` in 1..rounds:
-   a. Spawn `ta-bull-researcher` (subagent_type) with `{ticker, results_dir, round=n, debate_history}`. The `debate_history` is the concatenation of every previously-written file in `${results_dir}/debate_turns/` in order — include its actual contents in the prompt, not just file paths.
-   b. After bull_<n>.md exists, spawn `ta-bear-researcher` with the updated history.
-5. After the loop, spawn `ta-research-manager` with `{ticker, trade_date, results_dir}`. It writes `research_plan.json`.
-6. Read `research_plan.json` and print a 2-line summary: the `recommendation` and the first ~30 words of `rationale`.
+### 1. Resolve `data_dir`
 
-Tell the user the next step is `/trade-decide <ticker> [date]` to run the trader + risk debate + portfolio manager.
+```bash
+if [ -n "${TRADINGCLAWD_DIR:-}" ]; then
+  DATA_DIR="${TRADINGCLAWD_DIR}"
+else
+  DATA_DIR="$(pwd)/.tradingclawd"
+fi
+```
+
+### 2. Compute `results_dir` and verify analyst reports exist
+
+```
+results_dir = ${data_dir}/results/<TICKER>/<TRADE_DATE>
+```
+
+Verify all four files exist in `${results_dir}/`: `market_report.md`, `sentiment_report.md`, `news_report.md`, `fundamentals_report.md`. If any are missing, stop and tell the user to run `/trade-analyze <ticker> [date]` first (and remind them to set `TRADINGCLAWD_DIR` if they used it before).
+
+### 3. Debate loop
+
+`mkdir -p ${results_dir}/debate_turns`.
+
+For `n` in 1..rounds (use `subagent_type` values with the `tradingclawd:` prefix exactly as shown):
+   a. Spawn `tradingclawd:ta-bull-researcher` with `{ticker, results_dir, round=n, debate_history}`. The `debate_history` is the concatenation of every previously-written file in `${results_dir}/debate_turns/` in order — include its actual contents in the prompt, not just file paths.
+   b. After bull_<n>.md exists, spawn `tradingclawd:ta-bear-researcher` with the updated history.
+
+### 4. Research Manager
+
+After the loop, spawn `tradingclawd:ta-research-manager` with `{ticker, trade_date, results_dir}`. It writes `research_plan.json`.
+
+### 5. Summarize
+
+Read `research_plan.json` and print a 2-line summary: the `recommendation` and the first ~30 words of `rationale`. Tell the user the next step is `/trade-decide <ticker> [date]` to run the trader + risk debate + portfolio manager.

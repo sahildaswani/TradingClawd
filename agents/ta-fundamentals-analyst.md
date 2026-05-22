@@ -23,7 +23,7 @@ python ${plugin_dir}/scripts/get_income_statement.py --ticker <T> --freq quarter
 python ${plugin_dir}/scripts/get_insider_transactions.py --ticker <T>
 ```
 
-Call these in parallel where you can (multiple Bash tool uses in a single message).
+**Run ALL FIVE calls in parallel** — issue all five Bash tool uses in a SINGLE message so they execute concurrently. These scripts have no dependency on each other; serializing them is a pure waste of wall-clock time.
 
 ### Output
 
