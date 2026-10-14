@@ -1,56 +1,30 @@
 ---
 name: trade-debate
-description: "Run only the bull/bear research debate + research manager for one ticker. Assumes analyst reports already exist in ${data_dir}/results/<TICKER>/<DATE>/. Usage: `/trade-debate NVDA [2026-05-22] [rounds=1]`."
-argument-hint: "<ticker> [trade-date YYYY-MM-DD] [rounds=N]"
-allowed-tools: Bash, Read, Write, Glob, Grep, Agent
+description: "Run only the bull/bear research debate + research manager for one or more tickers. Needs the analyst reports in ${data_dir}/results/<TICKER>/<DATE>/. Usage: `/trade-debate NVDA [2026-05-22] [rounds=1]`."
+argument-hint: "<ticker>[,<ticker>...] [trade-date YYYY-MM-DD] [rounds=N]"
+allowed-tools: Bash, Read, Workflow
 ---
 
 # /trade-debate — research debate only
 
-Runs the bull/bear debate (configurable rounds) for ONE ticker, then has the research manager produce `research_plan.json`. Requires the four analyst reports to already exist on disk.
+Runs the bull/bear debate (bull opens, bear answers, for each round) and the research manager through the `tradingclawd:trade-pipeline` workflow, producing `research_plan.json`. Needs the four analyst reports on disk. Earlier debate files for the same date are moved to `_previous_runs/` first.
 
-## Arguments
+## Step 1: Prepare the run
 
-Parse `$ARGUMENTS` as: `<ticker> [<YYYY-MM-DD>] [rounds=N]`. Default `trade_date` to today, default `rounds=1`.
-
-## Steps
-
-### 1. Resolve `data_dir`
+Parse `$ARGUMENTS` as `<tickers> [<YYYY-MM-DD>] [rounds=N]` (rounds 1 to 5, default 1). Then run, leaving out flags that were not given:
 
 ```bash
-if [ -n "${TRADINGCLAWD_DIR:-}" ]; then
-  DATA_DIR="${TRADINGCLAWD_DIR}"
-else
-  DATA_DIR="$(pwd)/.tradingclawd"
-fi
+RUN="${CLAUDE_PLUGIN_ROOT}/scripts/run.sh"
+[ -x "$RUN" ] || RUN=$(ls -d "$HOME"/.claude/plugins/cache/*/tradingclawd/*/scripts/run.sh 2>/dev/null | sort -V | tail -1)
+"$RUN" prepare_run.py --tickers "<TICKERS>" --date <DATE> --start-at debate --stop-after debate --debate-rounds <N>
 ```
 
-### 2. Compute `results_dir` and verify analyst reports exist
+If it exits with an error (for example missing analyst reports), show the error, which names the command to run first, and stop. If the user relies on `TRADINGCLAWD_DIR`, remind them it must be set as it was for the analyst run.
 
-```
-results_dir = ${data_dir}/results/<TICKER>/<TRADE_DATE>
-```
+## Step 2: Start the workflow
 
-Verify all four files exist in `${results_dir}/`: `market_report.md`, `sentiment_report.md`, `news_report.md`, `fundamentals_report.md`. If any are missing, stop and tell the user to run `/trade-analyze <ticker> [date]` first (and remind them to set `TRADINGCLAWD_DIR` if they used it before).
+Tell the user in one line what is starting. Call the **Workflow** tool with `name: "tradingclawd:trade-pipeline"` and `args` set to the JSON object prepare_run printed (an object, not a string). Mention `/workflows`, then end your turn.
 
-### 3. Debate loop
+## Step 3: When the workflow finishes
 
-`mkdir -p ${results_dir}/debate_turns`.
-
-**Round 1 — opening case (bull AND bear in parallel):**
-
-In a single message, spawn BOTH `tradingclawd:ta-bull-researcher` AND `tradingclawd:ta-bear-researcher` in parallel (2 `Agent` calls in one message). Each gets `{ticker, results_dir, round=1, debate_history=""}`. They write their opening statements based on the analyst reports alone — there's no prior debate to respond to, and the agents are explicitly told to handle the empty-history case.
-
-**Rounds 2..rounds — sequential (only if `rounds > 1`):**
-
-For `n` in 2..rounds:
-   a. Spawn `tradingclawd:ta-bull-researcher` with `{ticker, results_dir, round=n, debate_history}`. The `debate_history` is the concatenation of every previously-written file in `${results_dir}/debate_turns/` in lexical order — include the actual contents in the prompt, not just file paths.
-   b. After `bull_<n>.md` exists, spawn `tradingclawd:ta-bear-researcher` with the updated history.
-
-### 4. Research Manager
-
-After the loop, spawn `tradingclawd:ta-research-manager` with `{ticker, trade_date, results_dir}`. It writes `research_plan.json`.
-
-### 5. Summarize
-
-Read `research_plan.json` and print a 2-line summary: the `recommendation` and the first ~30 words of `rationale`. Tell the user the next step is `/trade-decide <ticker> [date]` to run the trader + risk debate + portfolio manager.
+For each ticker print the research manager's `research_recommendation`, and read the first ~30 words of `rationale` from `<results_dir>/research_plan.json`. If a ticker's `status` is `REVIEW`, show its `failure`. The next step is `/tradingclawd:trade-decide <TICKER> <DATE>`.

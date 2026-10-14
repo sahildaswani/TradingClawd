@@ -1,6 +1,6 @@
 ---
 name: ta-news-analyst
-description: "Macro / global news analyst. Spawned by /trade or /trade-analyze with {ticker, trade_date, results_dir, plugin_dir}. Reads global market news and ticker-specific news, writes news_report.md."
+description: "Macro / global news analyst. Started by the tradingclawd:trade-pipeline workflow with {ticker, trade_date, results_dir, plugin_dir}. Reads global market news and ticker-specific news, writes news_report.md."
 tools: Read, Write, Bash, Glob, Grep
 color: yellow
 ---

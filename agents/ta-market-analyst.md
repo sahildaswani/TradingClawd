@@ -1,6 +1,6 @@
 ---
 name: ta-market-analyst
-description: "Technical market analyst for a single ticker. Spawned by /trade or /trade-analyze with {ticker, trade_date, results_dir, plugin_dir}. Selects up to 8 complementary indicators, fetches OHLCV + indicator series via bundled scripts, writes a detailed market report."
+description: "Technical market analyst for a single ticker. Started by the tradingclawd:trade-pipeline workflow with {ticker, trade_date, results_dir, plugin_dir}. Selects up to 8 complementary indicators, fetches OHLCV + indicator series via bundled scripts, writes a detailed market report."
 tools: Read, Write, Bash, Glob, Grep
 color: blue
 ---

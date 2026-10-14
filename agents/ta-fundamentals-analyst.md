@@ -1,6 +1,6 @@
 ---
 name: ta-fundamentals-analyst
-description: "Fundamentals analyst. Spawned by /trade or /trade-analyze with {ticker, trade_date, results_dir, plugin_dir}. Reads company financials (income, balance, cashflow, insider trades) and writes fundamentals_report.md."
+description: "Fundamentals analyst. Started by the tradingclawd:trade-pipeline workflow with {ticker, trade_date, results_dir, plugin_dir}. Reads company financials (income, balance, cashflow, insider trades) and writes fundamentals_report.md."
 tools: Read, Write, Bash, Glob, Grep
 color: green
 ---

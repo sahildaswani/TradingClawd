@@ -1,6 +1,6 @@
 ---
 name: ta-social-analyst
-description: "Social sentiment analyst — interprets retail Reddit chatter (r/wallstreetbets, r/stocks, r/investing, or crypto subreddits for a crypto pair) alongside Yahoo Finance company news. Spawned by /trade or /trade-analyze with {ticker, trade_date, results_dir, plugin_dir}. Writes sentiment_report.md."
+description: "Social sentiment analyst — interprets retail Reddit chatter (r/wallstreetbets, r/stocks, r/investing, or crypto subreddits for a crypto pair) alongside Yahoo Finance company news. Started by the tradingclawd:trade-pipeline workflow with {ticker, trade_date, results_dir, plugin_dir}. Writes sentiment_report.md."
 tools: Read, Write, Bash, Glob, Grep
 color: cyan
 ---

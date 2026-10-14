@@ -1,163 +1,54 @@
 ---
 name: trade
-description: "Run the full TradingClawd multi-agent pipeline on one or more tickers and produce a portfolio decision (Buy / Overweight / Hold / Underweight / Sell) per ticker. Usage: `/trade NVDA` or `/trade NVDA,AAPL,TSLA` or `/trade NVDA 2026-05-22`."
-argument-hint: "<ticker>[,<ticker>...] [trade-date YYYY-MM-DD]"
-allowed-tools: Bash, Read, Write, Glob, Grep, Agent
+description: "Run the full TradingClawd multi-agent pipeline on one or more tickers and produce a portfolio decision (Buy / Overweight / Hold / Underweight / Sell) per ticker. Usage: `/trade NVDA` or `/trade NVDA,AAPL,TSLA` or `/trade NVDA 2026-05-22 debate=2 risk=2`."
+argument-hint: "<ticker>[,<ticker>...] [trade-date YYYY-MM-DD] [debate=N] [risk=N]"
+allowed-tools: Bash, Read, Workflow
 ---
 
 # /trade — multi-agent trading pipeline
 
-## What this does
+Runs the whole pipeline for each ticker as the `tradingclawd:trade-pipeline` workflow: four analysts in parallel → bull/bear debate → research manager → trader → aggressive/conservative/neutral risk debate → portfolio manager. Each ticker runs its own chain, so one ticker never waits for another. The portfolio manager writes `portfolio_decision.json` and records the decision in the memory log itself.
 
-Runs the full pipeline (four analysts in parallel → bull/bear research debate → research manager → trader → aggressive/conservative/neutral risk debate → portfolio manager) for one or more tickers. Multi-ticker runs are parallelized **wave by wave**: each phase spawns its subagents for all tickers in a single parallel batch, then the next phase begins once that wave completes.
+## Step 1: Prepare the run
 
-Final decisions land at `${data_dir}/results/<TICKER>/<DATE>/portfolio_decision.json` and are appended to `${data_dir}/memory/trading_memory.md`.
+Parse `$ARGUMENTS`:
+- **tickers**: the first argument, comma-separated (e.g. `NVDA` or `NVDA,AAPL,TSLA`). If none were given, ask which tickers to analyze.
+- **trade date**: an optional `YYYY-MM-DD`. Leave it out to use today.
+- **rounds**: optional `debate=N` (bull/bear rounds) and `risk=N` (risk-debate rounds), each 1 to 5, default 1.
 
-## Arguments
-
-Parse `$ARGUMENTS` as: `<ticker>[,<ticker>...] [<YYYY-MM-DD>]`.
-
-- **tickers**: comma-separated list of stock symbols (e.g. `NVDA`, or `NVDA,AAPL,TSLA`). Uppercase them.
-- **trade_date**: optional. If omitted, default to today's date (use `date +%Y-%m-%d` via Bash — do not invent a date).
-
-If no tickers are provided, ask the user which ticker(s) they want before proceeding.
-
-## Configuration defaults
-
-- `max_debate_rounds` = 1 (one bull/bear exchange)
-- `max_risk_discuss_rounds` = 1 (one aggressive/conservative/neutral cycle)
-
-## Step 0: Resolve paths
+Then run (include only the flags the user gave):
 
 ```bash
-# plugin_dir — where the bundled data scripts live. Claude Code substitutes
-# CLAUDE_PLUGIN_ROOT with this plugin's directory when it loads the skill.
-PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT}"
-if [ ! -x "${PLUGIN_DIR}/scripts/run.sh" ]; then
-  # Fallback: the newest installed copy that has the launcher.
-  PLUGIN_DIR=$(ls -d "$HOME"/.claude/plugins/cache/*/tradingclawd/*/scripts/run.sh 2>/dev/null | sort -V | tail -1 | sed 's|/scripts/run.sh||')
-fi
-
-# data_dir — where results and the memory log are written.
-if [ -n "${TRADINGCLAWD_DIR:-}" ]; then
-  DATA_DIR="${TRADINGCLAWD_DIR}"
-else
-  DATA_DIR="$(pwd)/.tradingclawd"
-fi
-mkdir -p "${DATA_DIR}"
-
-TRADE_DATE=$(date +%Y-%m-%d)  # use this if user didn't pass one
-
-echo "plugin_dir=${PLUGIN_DIR}"
-echo "data_dir=${DATA_DIR}"
-echo "trade_date=${TRADE_DATE}"
+RUN="${CLAUDE_PLUGIN_ROOT}/scripts/run.sh"
+[ -x "$RUN" ] || RUN=$(ls -d "$HOME"/.claude/plugins/cache/*/tradingclawd/*/scripts/run.sh 2>/dev/null | sort -V | tail -1)
+"$RUN" prepare_run.py --tickers "<TICKERS>" --date <DATE> --debate-rounds <N> --risk-rounds <N>
 ```
 
-If `PLUGIN_DIR` is empty, stop and tell the user to reinstall the plugin via `/plugin marketplace update tradingclawd-marketplace`.
+It prints the run as JSON. If it exits with an error, show the error to the user and stop. The first run on a machine also builds TradingClawd's Python environment, which takes about a minute.
 
-Tell the user (one line) where results will be written, e.g. `Writing to: ${DATA_DIR}/results/<TICKER>/<DATE>/`.
+## Step 2: Start the workflow
 
-## Step 1: Create per-ticker results directories
+Tell the user in one line: the tickers, the trade date, the rounds, `agents_planned`, and that results go to `<data_dir>/results/<TICKER>/<DATE>/`.
 
-For each ticker T in the list:
-```bash
-mkdir -p "${DATA_DIR}/results/${T}/${TRADE_DATE}/debate_turns"
-mkdir -p "${DATA_DIR}/results/${T}/${TRADE_DATE}/risk_turns"
-```
+Call the **Workflow** tool with `name: "tradingclawd:trade-pipeline"` and `args` set to the JSON object prepare_run printed, passed as an object, not a string. Tell the user they can watch progress with `/workflows`, then end your turn.
 
-Let `results_dir(T) = ${DATA_DIR}/results/${T}/${TRADE_DATE}`. You'll use this path repeatedly below.
+## Step 3: When the workflow finishes
 
-## Wave 1: Analyst phase (parallel across tickers × analyst types)
+The completion notification carries the workflow's result: `trade_date`, `memory_log`, and one entry per ticker in `results`. Print:
 
-**In a single message**, spawn `N × 4` subagents — one of each analyst type per ticker. For N tickers this is up to 4N parallel `Agent` calls in one tool-use batch.
+| Ticker | Rating | Research plan | Trader | Summary |
+|---|---|---|---|---|
 
-Subagent types to use (the `tradingclawd:` prefix is required):
+using each result's `rating`, `research_recommendation`, `trader_action` and the first sentence of `executive_summary`.
 
-- `tradingclawd:ta-market-analyst`
-- `tradingclawd:ta-social-analyst`
-- `tradingclawd:ta-news-analyst`
-- `tradingclawd:ta-fundamentals-analyst`
+For any ticker whose `status` is `REVIEW`, show its `failure` and how to resume from what is already on disk:
+- stopped at `analyze`: `/tradingclawd:trade <TICKER> <DATE>`
+- stopped at `debate`: `/tradingclawd:trade-debate <TICKER> <DATE>`
+- stopped at `decide`: `/tradingclawd:trade-decide <TICKER> <DATE>`
 
-Each subagent prompt should include `ticker`, `trade_date`, `results_dir`, `plugin_dir` for that specific ticker.
-
-Wait for all of them to finish. Verify each ticker's `results_dir(T)/` now has `market_report.md`, `sentiment_report.md`, `news_report.md`, `fundamentals_report.md`.
-
-## Wave 2: Research debate (round 1 parallel; rounds 2+ sequential)
-
-**Wave 2.1 — Opening case (round 1, bull AND bear in parallel):**
-
-In one message, spawn BOTH `tradingclawd:ta-bull-researcher` AND `tradingclawd:ta-bear-researcher` for every ticker — that's `N × 2` parallel `Agent` calls. Each gets `{ticker, results_dir, round=1, debate_history=""}` (history is empty because nobody has gone first).
-
-Round 1 is each side's opening statement based on the analyst reports alone. The agents are explicitly told to handle the empty-history case by presenting their case standalone and anticipating likely counterarguments.
-
-**Rounds 2..max_debate_rounds — sequential within ticker (only if `max_debate_rounds > 1`):**
-
-For `n` in 2..`max_debate_rounds`:
-
-- **Wave 2.n.a — Bull rebuttal:** For each ticker, build `debate_history` (concatenated contents of all prior turn files in `results_dir(T)/debate_turns/`, lexical order). In one message, spawn `tradingclawd:ta-bull-researcher` for every ticker in parallel with `{ticker, results_dir, round=n, debate_history}`.
-- **Wave 2.n.b — Bear rebuttal:** Rebuild each ticker's history (now includes `bull_<n>.md`). Spawn `tradingclawd:ta-bear-researcher` for every ticker in parallel.
-
-After all rounds finish, move on to Wave 3.
-
-## Wave 3: Research Manager (parallel across tickers)
-
-In one message, spawn `tradingclawd:ta-research-manager` for every ticker in parallel. Each gets `{ticker, trade_date, results_dir}`. Each writes `research_plan.json` into its ticker's `results_dir`.
-
-## Wave 4: Trader (parallel across tickers)
-
-In one message, spawn `tradingclawd:ta-trader` for every ticker in parallel. Each gets `{ticker, trade_date, results_dir}`. Each writes `trader_proposal.json`.
-
-## Wave 5: Risk debate (round 1 parallel; rounds 2+ sequential)
-
-**Wave 5.1 — Opening positions (round 1, all three sides in parallel):**
-
-In one message, spawn ALL THREE of `tradingclawd:ta-risk-aggressive`, `tradingclawd:ta-risk-conservative`, AND `tradingclawd:ta-risk-neutral` for every ticker — that's `N × 3` parallel `Agent` calls. Each gets `{ticker, results_dir, round=1, risk_history=""}`.
-
-Each risk analyst's prompt already includes the "if there are no responses from the other viewpoints yet, present your own argument" clause, so they handle the empty-history case correctly: each writes its own opening position based on the trader's proposal + analyst reports.
-
-**Rounds 2..max_risk_discuss_rounds — sequential triads (only if `max_risk_discuss_rounds > 1`):**
-
-For `n` in 2..`max_risk_discuss_rounds`:
-
-- **Wave 5.n.a — Aggressive rebuttal:** Rebuild each ticker's `risk_history`. Spawn `tradingclawd:ta-risk-aggressive` for every ticker in parallel (one message).
-- **Wave 5.n.b — Conservative rebuttal:** Rebuild histories. Spawn `tradingclawd:ta-risk-conservative` for every ticker in parallel.
-- **Wave 5.n.c — Neutral rebuttal:** Rebuild histories. Spawn `tradingclawd:ta-risk-neutral` for every ticker in parallel.
-
-## Wave 6: Portfolio Manager (parallel across tickers)
-
-In one message, spawn `tradingclawd:ta-portfolio-manager` for every ticker in parallel. Each gets `{ticker, trade_date, results_dir, data_dir}` (the portfolio manager reads `${data_dir}/memory/trading_memory.md` for prior-decision lessons).
-
-Each writes `portfolio_decision.json` to its `results_dir`.
-
-## Step 7: Memory log append
-
-For each ticker, read `results_dir(T)/portfolio_decision.json`. Then append to `${DATA_DIR}/memory/trading_memory.md`:
-
-```
-## <trade_date> | <TICKER> | <rating> | pending
-<executive_summary>
-
-```
-
-If `${DATA_DIR}/memory/trading_memory.md` does not exist, first `mkdir -p ${DATA_DIR}/memory` and create the file with header `# TradingClawd decision log\n\n`.
-
-## Step 8: Print summary table
-
-Collate per-ticker decisions into a markdown table:
-
-```
-| Ticker | Date       | Rating      | Summary                           |
-|--------|------------|-------------|-----------------------------------|
-| NVDA   | 2026-05-22 | Overweight  | <executive summary excerpt>       |
-| AAPL   | 2026-05-22 | Hold        | <…>                               |
-```
-
-Tell the user the per-ticker artifacts are in `${DATA_DIR}/results/<TICKER>/<TRADE_DATE>/` and the running decision log is `${DATA_DIR}/memory/trading_memory.md`.
+End with the results path and the decision log path (`memory_log`).
 
 ## Rules
 
-- **Parallelism is achieved within each wave, not across waves.** Wave K+1 cannot start until every subagent in Wave K has returned. This is enforced naturally by Claude Code — the next message in your turn happens after all parallel `Agent` calls return.
-- **All `Agent` calls within a wave MUST be in a single message** so they execute concurrently. Separating them across messages serializes the wave.
-- **Do NOT invent the current date** — read it from the system.
-- **NEVER write under `${plugin_dir}`** — that's the plugin install location (potentially read-only, gets overwritten on `/plugin marketplace update`). Results and memory always go under `${data_dir}`.
-- **NEVER try to spawn `Agent` from inside a subagent prompt.** Subagents cannot spawn further subagents — the `Agent` tool only exists in the main session where this skill runs.
+- Never write under the plugin directory; results and the memory log live under the data directory prepare_run reports.
+- Do not invent the trade date; prepare_run reads it from the system.
