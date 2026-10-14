@@ -30,11 +30,12 @@ If no tickers are provided, ask the user which ticker(s) they want before procee
 ## Step 0: Resolve paths
 
 ```bash
-# plugin_dir — where the bundled Python data scripts live.
-if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "${CLAUDE_PLUGIN_ROOT}/scripts/_common.py" ]; then
-  PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT}"
-else
-  PLUGIN_DIR=$(find "$HOME/.claude/plugins" -type f -name "_common.py" -path "*/tradingclawd/scripts/*" 2>/dev/null | head -1 | sed 's|/scripts/_common.py||')
+# plugin_dir — where the bundled data scripts live. Claude Code substitutes
+# CLAUDE_PLUGIN_ROOT with this plugin's directory when it loads the skill.
+PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT}"
+if [ ! -x "${PLUGIN_DIR}/scripts/run.sh" ]; then
+  # Fallback: the newest installed copy that has the launcher.
+  PLUGIN_DIR=$(ls -d "$HOME"/.claude/plugins/cache/*/tradingclawd/*/scripts/run.sh 2>/dev/null | sort -V | tail -1 | sed 's|/scripts/run.sh||')
 fi
 
 # data_dir — where results and the memory log are written.
@@ -65,65 +66,6 @@ mkdir -p "${DATA_DIR}/results/${T}/${TRADE_DATE}/risk_turns"
 ```
 
 Let `results_dir(T) = ${DATA_DIR}/results/${T}/${TRADE_DATE}`. You'll use this path repeatedly below.
-
-## Wave 0.5: Pre-fetch Reddit signal (main session only — subagents cannot access plugin MCP tools)
-
-**Why this lives here, not in the social analyst:** Plugin-bundled MCP tools (like `mcp__plugin_tradingclawd_reddit__*`) are only available to skills running in the main session. Subagents spawned via `Agent` cannot access them, regardless of what's declared in their `tools:` frontmatter. So the skill itself must do the Reddit fetching and persist the results to disk; the social analyst then reads from disk.
-
-### Detect auth mode and choose budget
-
-```bash
-if [ -n "${REDDIT_CLIENT_ID:-}" ] && [ -n "${REDDIT_CLIENT_SECRET:-}" ]; then
-  REDDIT_AUTH="AUTHENTICATED"   # ~60-100 req/min — use the wider budget
-else
-  REDDIT_AUTH="ANONYMOUS"       # ~10 req/min — keep it tight
-fi
-echo "Reddit auth mode: ${REDDIT_AUTH}"
-```
-
-### Round A: search + top_posts (parallel for ALL tickers)
-
-In a single message, batch these MCP calls (the exact mix depends on `REDDIT_AUTH`):
-
-**ANONYMOUS mode — 2 calls per ticker:**
-- `mcp__plugin_tradingclawd_reddit__search_reddit` with `{query: "<TICKER>", time_filter: "week", limit: 10}`
-- `mcp__plugin_tradingclawd_reddit__get_top_posts` with `{subreddit: "wallstreetbets", time_filter: "week", limit: 10}`
-
-**AUTHENTICATED mode — 5 calls per ticker:**
-- `mcp__plugin_tradingclawd_reddit__search_reddit` with `{query: "<TICKER>", time_filter: "week", limit: 10}`
-- `mcp__plugin_tradingclawd_reddit__search_reddit` with `{query: "<company-name-if-known>", time_filter: "week", limit: 10}` (skip if you don't have the company name handy from the ticker)
-- `mcp__plugin_tradingclawd_reddit__get_top_posts` with `{subreddit: "wallstreetbets", time_filter: "week", limit: 10}`
-- `mcp__plugin_tradingclawd_reddit__get_top_posts` with `{subreddit: "stocks", time_filter: "week", limit: 10}`
-- `mcp__plugin_tradingclawd_reddit__get_top_posts` with `{subreddit: "investing", time_filter: "week", limit: 10}`
-
-For N tickers, this is N × (2 or 5) calls in ONE message. All in parallel.
-
-### Round B: comments on the most engaged ticker-relevant post (parallel)
-
-From Round A's results, for each ticker identify the single most engaged post that actually mentions the ticker (score × comment count is a good rough heuristic; skip posts that don't reference the ticker even tangentially). If no relevant post exists, skip Round B for that ticker.
-
-In a single message, batch one `mcp__plugin_tradingclawd_reddit__get_post_comments` call per ticker that has a relevant post.
-
-### Round C: write `reddit_signal.md` per ticker
-
-For each ticker, write `${results_dir}/reddit_signal.md` with the auth mode banner at the top and the raw Round A + Round B results, structured like:
-
-```markdown
-# Reddit signal for <TICKER> @ <trade_date>
-**Auth mode:** <ANONYMOUS|AUTHENTICATED>
-**Subreddits sampled:** <list>
-
-## search_reddit("<TICKER>", week) — N results
-<post titles, scores, authors, subreddits, comment counts, links>
-
-## get_top_posts(<sub>, week) — N results
-<same shape>
-
-## Comments on most engaged post (<title>)
-<top 5-10 comments with author + score + body>
-```
-
-If a Reddit call errors out (rate limit, network), note it in the file with `**ERROR:** <message>` instead of the data — DON'T abort the pipeline, the analyst can still write a degraded report.
 
 ## Wave 1: Analyst phase (parallel across tickers × analyst types)
 

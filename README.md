@@ -6,7 +6,7 @@ A Claude Code plugin that ports the [TradingAgents](https://github.com/tauricres
 
 Run `/trade NVDA` (or `/trade NVDA,AAPL,TSLA` for multi-ticker parallel) and the pipeline:
 
-1. **Four analysts run in parallel** — market (technical indicators), social (news sentiment), news (macro context), fundamentals (financial statements).
+1. **Four analysts run in parallel** — market (technical indicators), social (Reddit + company news sentiment), news (macro context), fundamentals (financial statements).
 2. **Bull vs Bear research debate** — researchers argue, a Research Manager judges and produces a 5-tier recommendation (`Buy / Overweight / Hold / Underweight / Sell`).
 3. **Trader** turns the recommendation into a concrete proposal (`Buy / Hold / Sell` + entry price + stop-loss + sizing).
 4. **Aggressive vs Conservative vs Neutral risk debate** — three risk analysts argue about the trader's proposal.
@@ -28,15 +28,7 @@ Crucially, TradingClawd **never** writes inside the plugin install directory —
 
 ### Dependencies
 
-**Python 3.10+** — for the bundled data scripts (yfinance, stockstats, pandas). Claude Code plugins don't auto-install Python dependencies, so install them yourself:
-
-```bash
-pip install yfinance stockstats pandas python-dateutil requests
-```
-
-(Equivalent to `pip install -r requirements.txt` from the cloned repo.)
-
-**Node.js / npm 18+** — for the Reddit MCP server (auto-fetched via `npx` on first use). Confirm with `node --version` and `npx --version`.
+**Python 3.10+** available as `python3`. That's all: the first data call builds TradingClawd's own virtual environment under `~/.cache/tradingclawd/` (about a minute, once) and installs `requirements.txt` into it, so the scripts never touch your global Python packages. Changing `requirements.txt` builds a fresh environment on the next call.
 
 ### As a Claude Code plugin
 
@@ -61,35 +53,14 @@ To pull updates after the repo changes:
 /plugin marketplace update tradingclawd-marketplace
 ```
 
-### Optional: Reddit auth (for higher rate limits + richer social signal)
+### Reddit
 
-Retail sentiment is pulled from r/wallstreetbets, r/stocks, and r/investing via the bundled [reddit-mcp-server](https://github.com/jordanburke/reddit-mcp-server). The fetching happens in the `/trade` and `/trade-analyze` skills themselves (main Claude Code session), which then write a `reddit_signal.md` to each ticker's results directory. The social analyst subagent reads that file. This split is required because plugin-bundled MCP tools are only accessible to the main session — subagents cannot call them.
+Retail sentiment comes from Reddit's public RSS search feed: r/wallstreetbets, r/stocks and r/investing (or r/CryptoCurrency, r/CryptoMarkets and the coin's own subreddit for a crypto pair like `BTC-USD`). No login or API key — Reddit's JSON API rejects anonymous clients, but the RSS feed serves them.
 
-**By default the plugin runs in anonymous mode** (~10 Reddit requests/minute, no API key required) and pulls 2-3 calls per ticker. That's fine for single-ticker runs.
+Two limits come with it:
 
-If you run **multi-ticker** commands frequently (`/trade NVDA,AAPL,TSLA,...`) or want richer Reddit context (search across r/wallstreetbets / r/stocks / r/investing, more posts, comments on top results — about 5-6 calls per ticker), upgrade to authenticated mode. Authenticated mode raises Reddit's rate limit to 60–100 req/min and the `/trade` skill automatically expands its Reddit fetch budget when it detects the credentials.
-
-**Heads-up: Reddit's "Responsible Builder Policy" gate is real.** As of 2025-2026, Reddit's app creation page often loops users through captchas or blocks app creation entirely for newer accounts, accounts without verified email, or accounts on VPNs. If you hit the gate, stay on anonymous mode — the plugin still works fine, just with the tighter budget.
-
-**One-time setup (if Reddit lets you):**
-
-1. Sign in to Reddit and go to https://www.reddit.com/prefs/apps
-2. Click "create another app..." at the bottom
-3. Fill in:
-   - **name**: anything (e.g. `tradingclawd-mcp`)
-   - **type**: select **`script`** (no OAuth, no user redirect — this is the simplest type)
-   - **redirect uri**: `http://localhost:8080` (required field but never used by `script` apps)
-4. Click "create app". Reddit shows two strings:
-   - The client ID is the random string directly under the app name
-   - The client secret is the value labelled `secret`
-5. Add to your shell rc (`~/.zshrc`, `~/.bashrc`):
-   ```bash
-   export REDDIT_CLIENT_ID="<the ID from step 4>"
-   export REDDIT_CLIENT_SECRET="<the secret from step 4>"
-   ```
-6. `source ~/.zshrc` (or restart your terminal) and re-launch Claude Code.
-
-The Reddit MCP server inherits these env vars from Claude Code's process. The plugin manifest never sees the credentials — they live only in your shell, never in version control.
+- **About one request per minute per IP.** Each ticker's social analyst makes one request; in a multi-ticker run they queue behind each other (via a lock in `~/.cache/tradingclawd/`), so the Nth ticker waits roughly N−1 minutes for its turn. A ticker that would wait more than 5 minutes reports Reddit as unavailable instead.
+- **No vote or comment counts.** The analyst judges posts by their content.
 
 ## Commands
 
@@ -109,7 +80,7 @@ TradingClawd/
 ├── .claude-plugin/plugin.json          # plugin manifest
 ├── agents/                             # 12 subagent definitions
 │   ├── ta-market-analyst.md            # technical analysis
-│   ├── ta-social-analyst.md            # interprets pre-fetched Reddit signal + yfinance news
+│   ├── ta-social-analyst.md            # Reddit (RSS) + yfinance company news
 │   ├── ta-news-analyst.md              # macro / global news
 │   ├── ta-fundamentals-analyst.md      # financials
 │   ├── ta-bull-researcher.md
@@ -125,16 +96,19 @@ TradingClawd/
 │   ├── trade-analyze/SKILL.md
 │   ├── trade-debate/SKILL.md
 │   └── trade-decide/SKILL.md
-├── scripts/                            # data layer (yfinance + stockstats CLIs)
+├── scripts/                            # data layer (yfinance + stockstats + Reddit RSS CLIs)
+│   ├── run.sh                          # runs a script in the plugin's own Python venv
 │   ├── _common.py
+│   ├── _google_news.py                 # Google News RSS search (shared by both news scripts)
 │   ├── get_stock_data.py               # OHLCV
 │   ├── get_indicators.py               # MACD, RSI, BBANDS, ATR, VWMA, etc.
 │   ├── get_fundamentals.py             # P/E, margins, etc.
 │   ├── get_balance_sheet.py
 │   ├── get_cashflow.py
 │   ├── get_income_statement.py
-│   ├── get_news.py                     # ticker-specific news
-│   ├── get_global_news.py              # macro news
+│   ├── get_news.py                     # ticker-specific news (Google News, then Yahoo)
+│   ├── get_global_news.py              # macro news (Google News, then Yahoo)
+│   ├── get_reddit.py                   # Reddit posts via public RSS
 │   └── get_insider_transactions.py
 └── requirements.txt                    # Python deps for the data scripts
 ```
@@ -158,9 +132,10 @@ User-visible data (written to `$TRADINGCLAWD_DIR` or `$(pwd)/.tradingclawd/`, NO
 
 ## Data sources
 
-- **Market data** (OHLCV, fundamentals, company news): [**yfinance**](https://github.com/ranaroussi/yfinance) — free, no API key.
+- **Market data** (OHLCV, fundamentals, insider trades): [**yfinance**](https://github.com/ranaroussi/yfinance) — free, no API key.
+- **Company and macro news**: Google News RSS search — keyless, searched within the analysis window, so past-dated runs get the news of their own week. Headlines only (no article text). Falls back to Yahoo Finance, which serves only recent items.
 - **Technical indicators**: [**stockstats**](https://github.com/jealous/stockstats) computed off the OHLCV pulled from yfinance.
-- **Retail social signal**: [**reddit-mcp-server**](https://github.com/jordanburke/reddit-mcp-server) — bundled via the plugin's MCP config. Anonymous mode by default (no API key, ~10 req/min). Optional authenticated mode lifts the rate limit to 60–100 req/min and expands the social analyst's call budget for richer multi-sub coverage — see [Optional: Reddit auth](#optional-reddit-auth-for-higher-rate-limits--richer-social-signal) above.
+- **Retail social signal**: Reddit's public RSS search feed — no login, about one request per minute (see [Reddit](#reddit)).
 
 No Twitter / X integration (paid API). No Alpha Vantage integration (yfinance already covers the same data without a key).
 
@@ -170,7 +145,7 @@ No Twitter / X integration (paid API). No Alpha Vantage integration (yfinance al
 - No multi-provider LLM client. The "LLM" is whichever Claude model is running Claude Code.
 - No checkpoint / resume — runs that fail mid-pipeline can be resumed by invoking the relevant `/trade-*` sub-skill (analyst reports / research plan are persisted on disk).
 - No backtesting (`backtrader`).
-- Only the `yfinance` data vendor is wired up. The interface mirrors the upstream tool signatures, so adding Alpha Vantage scripts in `scripts/` later is straightforward.
+- Only the `yfinance` data vendor (plus Google News and Reddit RSS) is wired up. The interface mirrors the upstream tool signatures, so adding Alpha Vantage scripts in `scripts/` later is straightforward.
 
 ## Not financial advice
 

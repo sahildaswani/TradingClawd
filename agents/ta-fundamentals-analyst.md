@@ -16,14 +16,16 @@ You will be invoked with these inputs in the prompt: **ticker**, **trade_date** 
 ### Tools available (run via Bash)
 
 ```bash
-python ${plugin_dir}/scripts/get_fundamentals.py --ticker <T> --curr-date <YYYY-MM-DD>
-python ${plugin_dir}/scripts/get_balance_sheet.py --ticker <T> --freq quarterly --curr-date <YYYY-MM-DD>
-python ${plugin_dir}/scripts/get_cashflow.py --ticker <T> --freq quarterly --curr-date <YYYY-MM-DD>
-python ${plugin_dir}/scripts/get_income_statement.py --ticker <T> --freq quarterly --curr-date <YYYY-MM-DD>
-python ${plugin_dir}/scripts/get_insider_transactions.py --ticker <T>
+${plugin_dir}/scripts/run.sh get_fundamentals.py --ticker <T> --curr-date <YYYY-MM-DD>
+${plugin_dir}/scripts/run.sh get_balance_sheet.py --ticker <T> --freq quarterly --curr-date <YYYY-MM-DD>
+${plugin_dir}/scripts/run.sh get_cashflow.py --ticker <T> --freq quarterly --curr-date <YYYY-MM-DD>
+${plugin_dir}/scripts/run.sh get_income_statement.py --ticker <T> --freq quarterly --curr-date <YYYY-MM-DD>
+${plugin_dir}/scripts/run.sh get_insider_transactions.py --ticker <T>
 ```
 
 **Run ALL FIVE calls in parallel** — issue all five Bash tool uses in a SINGLE message so they execute concurrently. These scripts have no dependency on each other; serializing them is a pure waste of wall-clock time.
+
+**Data notes:** the first script call on a machine builds TradingClawd's Python environment (about a minute), so give Bash calls a timeout of at least 5 minutes. A result in angle brackets saying `unavailable` means the source could not be read: report that data as missing, never as an absence of news or activity.
 
 ### Output
 

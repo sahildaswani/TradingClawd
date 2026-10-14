@@ -19,7 +19,7 @@ import pandas as pd
 import yfinance as yf
 from dateutil.relativedelta import relativedelta
 
-from _common import die, parse_date, yf_retry
+from _common import die, next_day, parse_date, yf_retry
 
 # Indicator catalog — descriptions are shown to the analyst LLM
 INDICATOR_DOCS = {
@@ -95,22 +95,20 @@ INDICATOR_DOCS = {
 }
 
 
-def _load_ohlcv(symbol: str, curr_date: str) -> pd.DataFrame:
-    """Fetch ~5 years of OHLCV and filter to curr_date to prevent look-ahead bias."""
-    today = pd.Timestamp.today()
-    start = today - pd.DateOffset(years=5)
+def _load_ohlcv(symbol: str, curr_date: str) -> tuple[pd.DataFrame, str]:
+    """~5 years of OHLCV up to and including curr_date (no look-ahead), and today's
+    date on the exchange's own clock (to flag a session that is still open)."""
+    start = pd.Timestamp(curr_date) - pd.DateOffset(years=5)
     data = yf_retry(
-        lambda: yf.download(
-            symbol,
-            start=start.strftime("%Y-%m-%d"),
-            end=today.strftime("%Y-%m-%d"),
-            multi_level_index=False,
-            progress=False,
-            auto_adjust=True,
+        lambda: yf.Ticker(symbol.upper()).history(
+            start=start.strftime("%Y-%m-%d"), end=next_day(curr_date), auto_adjust=True
         )
     )
+    exchange_today = pd.Timestamp.now(tz=data.index.tz).strftime("%Y-%m-%d")
+    if data.index.tz is not None:
+        data.index = data.index.tz_localize(None)
     data = data.reset_index()
-    data["Date"] = pd.to_datetime(data["Date"], errors="coerce")
+    data["Date"] = pd.to_datetime(data["Date"], errors="coerce").dt.normalize()
     data = data.dropna(subset=["Date"])
 
     price_cols = [c for c in ("Open", "High", "Low", "Close", "Volume") if c in data.columns]
@@ -119,7 +117,7 @@ def _load_ohlcv(symbol: str, curr_date: str) -> pd.DataFrame:
     data[price_cols] = data[price_cols].ffill().bfill()
 
     cutoff = pd.to_datetime(curr_date)
-    return data[data["Date"] <= cutoff]
+    return data[data["Date"] <= cutoff], exchange_today
 
 
 def _format_indicator_section(
@@ -128,21 +126,28 @@ def _format_indicator_section(
     curr_dt: pd.Timestamp,
     before: pd.Timestamp,
     curr_date: str,
+    exchange_today: str,
 ) -> str:
     """Build the markdown section for one indicator off an already-wrapped DataFrame."""
     value_map = {}
     for _, row in df_with_dates.iterrows():
         v = row[indicator]
         value_map[row["Date"]] = "N/A" if pd.isna(v) else str(v)
+    last_bar = max(value_map) if value_map else ""
 
     lines = []
     cur = curr_dt
     while cur >= before:
         ds = cur.strftime("%Y-%m-%d")
         if ds in value_map:
-            lines.append(f"{ds}: {value_map[ds]}")
+            provisional = " (today's bar: final only if the session has closed)" if ds == exchange_today else ""
+            lines.append(f"{ds}: {value_map[ds]}{provisional}")
+        elif cur.weekday() >= 5:
+            lines.append(f"{ds}: N/A: weekend")
+        elif ds > last_bar:
+            lines.append(f"{ds}: N/A: no bar yet (session not closed or data not yet published)")
         else:
-            lines.append(f"{ds}: N/A: Not a trading day (weekend or holiday)")
+            lines.append(f"{ds}: N/A: no bar (market holiday or missing data)")
         cur = cur - relativedelta(days=1)
 
     return (
@@ -172,7 +177,7 @@ def get_indicators_batch(
 
     from stockstats import wrap
 
-    data = _load_ohlcv(symbol, curr_date)
+    data, exchange_today = _load_ohlcv(symbol, curr_date)
     if data.empty:
         raise RuntimeError(f"No OHLCV data available for {symbol} up to {curr_date}")
 
@@ -184,7 +189,7 @@ def get_indicators_batch(
         df[ind]
 
     sections = [
-        _format_indicator_section(ind, df, curr_dt, before, curr_date)
+        _format_indicator_section(ind, df, curr_dt, before, curr_date, exchange_today)
         for ind in indicators
     ]
     return "\n\n".join(sections)

@@ -1,14 +1,8 @@
 {
   "name": "tradingclawd",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Multi-agent LLM trading framework — analysts, researchers, trader, risk debators and a portfolio manager that collaborate to produce a trading decision. Native Claude Code port of TradingAgents.",
   "author": {
     "name": "Sahil Daswani"
-  },
-  "mcpServers": {
-    "reddit": {
-      "command": "npx",
-      "args": ["reddit-mcp-server"]
-    }
   }
 }
