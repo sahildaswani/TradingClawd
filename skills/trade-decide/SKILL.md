@@ -16,10 +16,12 @@ Parse `$ARGUMENTS` as `<tickers> [<YYYY-MM-DD>] [rounds=N]` (rounds 1 to 5, defa
 ```bash
 RUN="${CLAUDE_PLUGIN_ROOT}/scripts/run.sh"
 [ -x "$RUN" ] || RUN=$(ls -d "$HOME"/.claude/plugins/cache/*/tradingclawd/*/scripts/run.sh 2>/dev/null | sort -V | tail -1)
-"$RUN" prepare_run.py --tickers "<TICKERS>" --date <DATE> --start-at decide --risk-rounds <N>
+"$RUN" prepare_run.py --tickers "<TICKERS>" --date <DATE> --start-at decide --risk-rounds <N> --portfolio <FILE> --language <NAME>
 ```
 
 If it exits with an error (for example a missing `research_plan.json`), show the error, which names the command to run first, and stop.
+
+Optional `portfolio=<file.json>` (else `<data_dir>/portfolio.json` if present) gives the trader, risk analysts and portfolio manager the user's holdings; `language=<name>` sets the language. Leave out flags that were not given.
 
 ## Step 2: Start the workflow
 
@@ -27,4 +29,6 @@ Tell the user in one line what is starting. Call the **Workflow** tool with `nam
 
 ## Step 3: When the workflow finishes
 
-For each ticker print `<TICKER> @ <trade_date>: <rating> — <first sentence of executive_summary>` and the path to its `portfolio_decision.json`. If a ticker's `status` is `REVIEW`, show its `failure`. End with the decision log path (`memory_log`).
+For each ticker print `<TICKER> @ <trade_date>: <rating> — <first sentence of executive_summary>` and the path to its `portfolio_decision.json` and `complete_report.html`. If a ticker's `status` is `REVIEW`, show its `failure`. Then one line on the memory log from the result's `memory`: how many past decisions were settled this run (name them), any that `failed` (with the reason; they stay pending and are retried next run), and how many are `still_pending`. If `reflector_failed` is true, say the lessons could not be written this run.
+
+End with the decision log path (`memory_log`).

@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import yfinance as yf
 
-from _common import die, now_iso, yf_retry
+from _common import die, is_historical, now_iso, yf_retry
 
 FIELDS = [
     ("Name", "longName"),
@@ -43,7 +43,13 @@ FIELDS = [
 ]
 
 
-def get_fundamentals(ticker: str) -> str:
+def get_fundamentals(ticker: str, curr_date: str | None = None) -> str:
+    if is_historical(curr_date):
+        # Ticker.info is today's profile: market cap, multiples, the 52-week range and
+        # even the name and sector reflect today, not the analysis date.
+        return (f"<Company profile withheld for {curr_date}: Yahoo serves only today's values (valuation, "
+                f"margins, 52-week range, even name and sector), which would put later information into a "
+                f"{curr_date} analysis. Use get_sec_statements.py for figures as filed by then>")
     obj = yf.Ticker(ticker.upper())
     info = yf_retry(lambda: obj.info)
     if not info:
@@ -60,10 +66,10 @@ def get_fundamentals(ticker: str) -> str:
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--ticker", required=True)
-    p.add_argument("--curr-date", help="YYYY-MM-DD (informational only for yfinance)")
+    p.add_argument("--curr-date", help="YYYY-MM-DD; a past date withholds today's profile")
     args = p.parse_args()
     try:
-        print(get_fundamentals(args.ticker))
+        print(get_fundamentals(args.ticker, args.curr_date))
     except Exception as e:
         die(str(e))
 

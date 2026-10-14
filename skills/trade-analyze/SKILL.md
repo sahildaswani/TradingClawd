@@ -16,10 +16,12 @@ Parse `$ARGUMENTS` as `<tickers> [<YYYY-MM-DD>]` (tickers comma-separated; ask i
 ```bash
 RUN="${CLAUDE_PLUGIN_ROOT}/scripts/run.sh"
 [ -x "$RUN" ] || RUN=$(ls -d "$HOME"/.claude/plugins/cache/*/tradingclawd/*/scripts/run.sh 2>/dev/null | sort -V | tail -1)
-"$RUN" prepare_run.py --tickers "<TICKERS>" --date <DATE> --stop-after analyze
+"$RUN" prepare_run.py --tickers "<TICKERS>" --date <DATE> --stop-after analyze --analysts <LIST> --language <NAME>
 ```
 
 If it exits with an error, show the error and stop. The first run on a machine also builds TradingClawd's Python environment (about a minute).
+
+Optional `analysts=market,news` runs a subset, and `language=<name>` sets the report language. Leave out flags that were not given.
 
 ## Step 2: Start the workflow
 

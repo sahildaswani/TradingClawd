@@ -65,8 +65,10 @@ if [ ! -x "$VENV/bin/python" ] || [ ! -f "$VENV/.ready" ]; then
     "$VENV/bin/python" -m pip install --quiet --disable-pip-version-check --upgrade pip >&2
     "$VENV/bin/python" -m pip install --quiet --disable-pip-version-check -r "$REQ" >&2
     touch "$VENV/.ready"
-    # Environments built from older requirements are no longer used.
-    find "$BASE" -maxdepth 1 -type d -name 'venv-*' ! -name "venv-$HASH" -exec rm -rf {} + 2>/dev/null || true
+    # Environments built from older requirements are no longer used once nothing
+    # has touched them for a week; a run still using one (another session on an
+    # older plugin version) must not lose it mid-run.
+    find "$BASE" -maxdepth 1 -type d -name 'venv-*' ! -name "venv-$HASH" -mtime +7 -exec rm -rf {} + 2>/dev/null || true
   fi
   rm -rf "$LOCK"
   trap - EXIT

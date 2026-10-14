@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pandas as pd
 import yfinance as yf
 
-from _common import die, now_iso, yf_retry
+from _common import die, is_historical, now_iso, yf_retry
 
 
 def _filter_by_date(data: pd.DataFrame, curr_date: str | None) -> pd.DataFrame:
@@ -22,6 +22,12 @@ def _filter_by_date(data: pd.DataFrame, curr_date: str | None) -> pd.DataFrame:
 
 
 def get_cashflow(ticker: str, freq: str, curr_date: str | None) -> str:
+    if is_historical(curr_date):
+        # Yahoo dates a statement by the period it covers, not by when it was filed,
+        # so a past-dated run could read figures that were not yet public.
+        return (f"<Cash flow statement from Yahoo withheld for {curr_date}: Yahoo does not say when each period was "
+                f"filed, so it cannot show what was public then. Use get_sec_statements.py, which serves "
+                f"US filers as filed by that date>")
     obj = yf.Ticker(ticker.upper())
     data = yf_retry(
         lambda: obj.quarterly_cashflow if freq.lower() == "quarterly" else obj.cashflow

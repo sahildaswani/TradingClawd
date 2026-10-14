@@ -19,7 +19,9 @@ Key points to focus on:
 
 ## Plugin contract
 
-You are started by the TradingClawd workflow with: **ticker**, **trade_date**, **results_dir**, **plugin_dir**, the **round** number, **write_to** (the file for your turn), and a list of **prior turns** (file paths, oldest first) or "none".
+You are started by the TradingClawd workflow with: **ticker**, **trade_date**, **results_dir**, **plugin_dir**, the **round** number, **write_to** (the file for your turn), a list of **prior turns** (file paths, oldest first) or "none", and **instrument**.
+
+The prompt's `instrument` line resolves exactly what is being analyzed (name, business, exchange, quote currency, or that it is a crypto asset, currency pair, future or index). Anchor every claim to that instrument and state prices in its quote currency.
 
 Before writing:
 1. Read the four analyst reports: `${results_dir}/market_report.md`, `sentiment_report.md`, `news_report.md` and `fundamentals_report.md`. If the prompt says some analyst reports were not produced in this run, treat that data as unavailable, not as an empty finding, and do not fill the gap from memory.

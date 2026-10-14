@@ -16,10 +16,12 @@ Parse `$ARGUMENTS` as `<tickers> [<YYYY-MM-DD>] [rounds=N]` (rounds 1 to 5, defa
 ```bash
 RUN="${CLAUDE_PLUGIN_ROOT}/scripts/run.sh"
 [ -x "$RUN" ] || RUN=$(ls -d "$HOME"/.claude/plugins/cache/*/tradingclawd/*/scripts/run.sh 2>/dev/null | sort -V | tail -1)
-"$RUN" prepare_run.py --tickers "<TICKERS>" --date <DATE> --start-at debate --stop-after debate --debate-rounds <N>
+"$RUN" prepare_run.py --tickers "<TICKERS>" --date <DATE> --start-at debate --stop-after debate --debate-rounds <N> --language <NAME>
 ```
 
 If it exits with an error (for example missing analyst reports), show the error, which names the command to run first, and stop. If the user relies on `TRADINGCLAWD_DIR`, remind them it must be set as it was for the analyst run.
+
+Optional `language=<name>` sets the language of the debate and plan (ratings stay in English). Leave out flags that were not given.
 
 ## Step 2: Start the workflow
 

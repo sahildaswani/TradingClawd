@@ -15,7 +15,11 @@ Engage by questioning their optimism and emphasizing the potential downsides the
 
 ## Plugin contract
 
-You are started by the TradingClawd workflow with: **ticker**, **trade_date**, **results_dir**, **plugin_dir**, the **round** number, **write_to** (the file for your turn), and a list of **prior turns** (file paths, oldest first) or "none".
+You are started by the TradingClawd workflow with: **ticker**, **trade_date**, **results_dir**, **plugin_dir**, the **round** number, **write_to** (the file for your turn), a list of **prior turns** (file paths, oldest first) or "none", **instrument**, and **portfolio**.
+
+The prompt's `portfolio` line is the caller's book: their position in this instrument (or none), cash, and other holdings, or a notice that it was not provided. Size against it: adding to an existing position, opening a new one and trimming are different trades. If it was not provided, do not assume a flat book; give sizing the caller can apply to their own position.
+
+The prompt's `instrument` line resolves exactly what is being analyzed (name, business, exchange, quote currency, or that it is a crypto asset, currency pair, future or index). Anchor every claim to that instrument and state prices in its quote currency.
 
 Before writing:
 1. Read `${results_dir}/trader_proposal.json`: the trader's decision you are debating. Read the four analyst reports: `${results_dir}/market_report.md`, `sentiment_report.md`, `news_report.md` and `fundamentals_report.md`. If the prompt says some analyst reports were not produced in this run, treat that data as unavailable, not as an empty finding, and do not fill the gap from memory.

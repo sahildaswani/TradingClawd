@@ -35,7 +35,9 @@ Volume-Based Indicators:
 
 ## Plugin contract
 
-You will be invoked with these inputs in the prompt: **ticker**, **trade_date** (YYYY-MM-DD), **results_dir** (absolute path), **plugin_dir** (absolute path to the TradingClawd plugin root).
+You will be invoked with these inputs in the prompt: **ticker**, **trade_date** (YYYY-MM-DD), **results_dir** (absolute path), **plugin_dir** (absolute path to the TradingClawd plugin root), and **instrument**.
+
+The prompt's `instrument` line resolves exactly what is being analyzed (name, business, exchange, quote currency, or that it is a crypto asset, currency pair, future or index). Anchor every claim to that instrument and state prices in its quote currency. Treat `trade_date` as today for every date range. Report what the data supports; another agent decides the trade, so do not give a buy/sell recommendation of your own. 
 
 ### Tools available (run via Bash)
 
@@ -45,6 +47,14 @@ ${plugin_dir}/scripts/run.sh get_indicators.py --symbol <T> --indicators <name1,
 ```
 
 For the stock-data range, use the 30 days preceding `trade_date` up to and including `trade_date`.
+
+Also run the verified snapshot (in the same message as the first data call):
+
+```bash
+${plugin_dir}/scripts/run.sh get_market_snapshot.py --symbol <T> --curr-date <YYYY-MM-DD>
+```
+
+**Treat the snapshot as the source of truth** for any exact OHLCV, price-level or indicator-value claim. If another tool's output conflicts with it, flag the discrepancy rather than inventing a reconciled number. Do not claim historical validation, support/resistance bounces or exact percentage moves unless tool output with concrete dates and prices supports them. If the latest row is today's and marked as possibly incomplete, say so and don't treat it as a close.
 
 **`get_indicators.py` accepts a comma-separated list via `--indicators` and returns all of them from a single OHLCV download.** You MUST pass all your selected indicators in ONE call — do NOT make a separate call per indicator (that would re-download the same OHLCV data 8 times). Example for the full 8-indicator selection:
 
